@@ -3,10 +3,10 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <termios.h>
+#include <ctype.h>
 
-#define MAX_USERNAME_LENGTH 20
-#define MAX_PASSWORD_LENGTH 20
-
+//---------------------- Cacher mot de passe par '*' ---------------------
 #ifdef _WIN32
 #include <conio.h>
 #else
@@ -27,12 +27,179 @@ char getch()
 }
 #endif
 
-// Structure pour stocker les informations de connexion
+#define LONGUEUR_MAX_LOGIN 10
+#define LONGUEUR_MAX_MDP 10
+#define MAX_STUDENTS_PER_CLASS 50
+
 typedef struct
 {
-    char login[MAX_USERNAME_LENGTH];
-    char motDePasse[MAX_PASSWORD_LENGTH];
+    int jour;
+    int mois;
+    int annee;
+} Date;
+
+typedef struct
+{
+    char login[LONGUEUR_MAX_LOGIN];
+    char motDePasse[LONGUEUR_MAX_MDP];
 } Identifiants;
+
+typedef struct
+{
+    char matricule[10];
+    char motdepasse[10];
+    char prenom[20];
+    char nom[20];
+    char classe[6];
+    Date dateNaiss;
+    int etat;
+} Apprenant;
+
+Identifiants identifiantsAdmin;
+int nombreIdentifiantsAdmin = 1;
+
+void enregistrerPresence(char *matricule)
+{
+    FILE *fichier = fopen("file-presence.txt", "a");
+    if (fichier == NULL)
+    {
+        printf("Erreur lors de l'ouverture du fichier de présence.\n");
+        return;
+    }
+
+    // Récupérer la date et l'heure  actuelle
+    time_t now = time(NULL);
+    struct tm *timeinfo = localtime(&now);
+    // Écrire dans le fichier la date et l'heure
+    fprintf(fichier, "%s %d/%d/%d %dh%dmn%ds\n", matricule, timeinfo->tm_mday, timeinfo->tm_mon + 1,
+            timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+
+    fclose(fichier);
+}
+
+void marquerPresence()
+{
+    char choix[10];
+    printf("\n--- Entrez le matricule de l'etudiant à marquer present ('Q' pour quitter) : ");
+    scanf("%s", choix);
+    while (strcmp(choix, "Q") != 0 && strcmp(choix, "q") != 0)
+    {
+        FILE *fichierPresence = fopen("file-presence.txt", "r");
+        if (fichierPresence == NULL)
+        {
+            printf("Erreur lors de l'ouverture du fichier de présence.\n");
+            return;
+        }
+        int present = 0;
+        char matricule[10];
+        while (fscanf(fichierPresence, "%s", matricule) != EOF)
+        {
+            if (strcmp(matricule, choix) == 0)
+            {
+                printf("\n--- ❌ L'étudiant de matricule %s est déjà marqué présent.\n", choix);
+                present = 1;
+                break;
+            }
+        }
+        fclose(fichierPresence);
+
+        if (!present)
+        {
+            FILE *fichier = fopen("file-etudiant.txt", "r+");
+            if (fichier == NULL)
+            {
+                printf("Erreur lors de l'ouverture du fichier d'etudiants.\n");
+                return;
+            }
+
+            while (fscanf(fichier, "%s", matricule) != EOF)
+            {
+                if (strcmp(matricule, choix) == 0)
+                {
+                    // Enregistrer la présence dans le fichier
+                    enregistrerPresence(choix);
+                    printf("\n--- ✅ Presence marquee pour l'etudiant de matricule %s\n", choix);
+                    present = 1;
+                    break;
+                }
+            }
+            fclose(fichier);
+        }
+
+        if (!present)
+        {
+            printf("--- ❌ Matricule invalide. Veuillez reessayer ('Q' pour quitter) : ");
+        }
+        else
+        {
+            printf("\n--- Entrez le matricule de l'etudiant à marquer present ('Q' pour quitter) : ");
+        }
+
+        scanf("%s", choix);
+    }
+}
+
+//---------------------------------------- Générer Fichier -------------------------------------------
+/*void genrerFchierPresenceGlobal () {
+    FILE *fichier = fopen ("presenceGlobal.txt","w");
+    if (fichier == NULL) {
+        printf("Erreur lors de l'ouverture du fichier d'etudiants.\n");
+        return;
+    }
+    while (fscanf(fichier,"%s", ) != EOF) {
+
+    }
+    fclose(fichier);
+}
+*/
+
+int menuAdmin()
+{
+    int choix = 0;
+    do
+    {
+        printf("--------------------------------------------------------------------------\n");
+        printf("\t\t\tBienvenue dans le menu de l'administrateur:\n");
+        printf("--------------------------------------------------------------------------\n");
+        printf("1 ---------- Gestion des étudiants\n");
+        printf("2 ---------- Génération de fichiers\n");
+        printf("3 ---------- Marquer les présences\n");
+        printf("4 ---------- Envoyer un message\n");
+        printf("5 ---------- Paramètres\n");
+        printf("6 ---------- Deconnexion\n");
+        printf("\n--- Entrez votre choix : ");
+        scanf("%d", &choix);
+        if (choix < 1 || choix > 6)
+        {
+            printf("Choix invalide. Veuillez entrer un choix entre 1 et 2.\n");
+        }
+    } while (choix != 6);
+    return choix;
+}
+
+int menuEtudiant()
+{
+    // Définition du menu de l'étudiant
+    int choix = 0;
+    do
+    {
+        printf("--------------------------------------------------------------------------\n");
+        printf("\t\t\tBienvenue dans le menu de l'apprenant :\n");
+        printf("--------------------------------------------------------------------------\n");
+        printf("1 ---------- GESTION DES ÉTUDIANTS\n");
+        printf("2 ---------- GÉNÉRATION DE FICHIERS\n");
+        printf("3 ---------- MARQUER SA PRÉSENCE\n");
+        printf("4 ---------- Message (0)\n");
+        printf("5 ---------- Déconnexion\n");
+        printf("\n---------- Entrez votre choix : ");
+        scanf("%d", &choix);
+        if (choix < 1 || choix > 5)
+        {
+            printf("Choix invalide. Veuillez entrer un choix entre  1 et 5.\n");
+        }
+    } while (choix < 1 || choix > 5);
+    return choix;
+}
 
 // Fonction pour vérifier les identifiants de connexion
 int verifierIdentifiants(Identifiants *identifiants, int nombreIdentifiants, char *login, char *motDePasse)
@@ -47,34 +214,67 @@ int verifierIdentifiants(Identifiants *identifiants, int nombreIdentifiants, cha
     return 0; // Identifiants invalides
 }
 
-// Structure pour représenter un étudiant
-struct Etudiant
+void viderBuffer()
 {
-    int id;
-    char nom[50];
-    char prenom[50];
-    char matricule[20];
-};
-
-// Fonction pour ajouter un étudiant au fichier
-void ajouterEtudiant(FILE *fichier, struct Etudiant etudiant)
-{
-    fprintf(fichier, "%d %s %s %s\n", etudiant.id, etudiant.nom, etudiant.prenom, etudiant.matricule);
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF)
+        ; // Lire et ignorer les caractères jusqu'à la fin de la ligne ou la fin du fichier
 }
 
-// Fonction pour marquer la présence d'un étudiant
-void marquerPresence(FILE *fichierPresence, int id, char nomEtudiant[50], char prenomEtudiant[50])
-{
-    time_t t;
-    time(&t);
-    fprintf(fichierPresence, "%d %s %s %s", id, nomEtudiant, prenomEtudiant, ctime(&t));
+/* //---------------------------------- Validation date
+int saisirjour (void) {
+    int jour;
+    printf("Saisir un jour : ");
+    scanf("%d", &jour);
+    return  jour;
 }
 
+int saisirmois (void) {
+    int mois;
+    printf("Saisir un mois : ");
+    scanf("%d", &mois);
+    return  mois;
+}
+
+int saisiran (void) {
+    int an;
+    printf("Saisir une année : ");
+    scanf("%d", &an);
+    return  an;
+}
+
+int isbissextile (int an) {
+    if ((an % 4 == 0 && an % 100 != 0) || an % 400 ==  0) return 1;
+    else return 0;
+}
+
+int nbr_jour (int mois, int an) {
+    if (mois == 4 || mois == 6 || mois == 9 || mois == 11) {
+        return 30;
+    } else if (mois ==  2) {
+        if (isbissextile(an)){
+            return 29;
+         }else{
+             return 28;
+        }
+    } else {
+         return 31;
+    }
+}
+
+void isdatevalide1 (int j, int mois, int an){
+    if (an > 0 && mois > 0 && mois <= 12 && j > 0 && j <= nbr_jour(mois, an))
+        printf("La date %d/%d/%d est valide\n", j, mois, an);
+    else  printf("Erreur: La date %d/%d/%d est invalide\n", j, mois, an);
+}
+ */
+
+//-------------------------------------------------------- Main -------------------------------------------------------
 int main()
 {
     // Création des fichiers pour stocker les identifiants
-    FILE *fichierAdmin = fopen("admin.txt", "r");
-    FILE *fichierEtudiant = fopen("etudiant.txt", "r");
+    FILE *fichierAdmin = fopen("admins.txt", "r");
+    FILE *fichierEtudiant = fopen("etudiants.txt", "r");
 
     if (fichierAdmin == NULL || fichierEtudiant == NULL)
     {
@@ -82,38 +282,51 @@ int main()
         return 1;
     }
 
+    // Variables pour stocker les identifiants
+    Identifiants identifiantsAdmin[100];    // Pour stocker jusqu'à 100 identifiants d'administrateur
+    Identifiants identifiantsEtudiant[100]; // Pour stocker jusqu'à 100 identifiants d'étudiant
+
+    int nombreIdentifiantsAdmin = 0;
+    int nombreIdentifiantsEtudiant = 0;
+
     // Lecture des identifiants de l'admin
-    Identifiants identifiantsAdmin;
-    fscanf(fichierAdmin, "%s %s", identifiantsAdmin.login, identifiantsAdmin.motDePasse);
+    while (fscanf(fichierAdmin, "%s %s", identifiantsAdmin[nombreIdentifiantsAdmin].login, identifiantsAdmin[nombreIdentifiantsAdmin].motDePasse) == 2)
+    {
+        nombreIdentifiantsAdmin++;
+    }
     fclose(fichierAdmin);
 
     // Lecture des identifiants de l'étudiant
-    Identifiants identifiantsEtudiant;
-    fscanf(fichierEtudiant, "%s %s", identifiantsEtudiant.login, identifiantsEtudiant.motDePasse);
+    while (fscanf(fichierEtudiant, "%s %s", identifiantsEtudiant[nombreIdentifiantsEtudiant].login, identifiantsEtudiant[nombreIdentifiantsEtudiant].motDePasse) == 2)
+    {
+        nombreIdentifiantsEtudiant++;
+    }
     fclose(fichierEtudiant);
 
-    // Variables pour l'authentification
-    char saisieLogin[MAX_USERNAME_LENGTH];
-    char saisieMotDePasse[MAX_PASSWORD_LENGTH];
-    char c;
-    int i = 0;
+    int choix = 0;
+    int choixMenu;
+    char saisieLogin[LONGUEUR_MAX_LOGIN];
+    char *saisieMotDePasse = malloc(LONGUEUR_MAX_MDP * sizeof(char)); // Allocation mémoire
 
     // Authentification
     do
     {
-        printf("Connexion :\n");
-
-        do
+        system("clear");
+        printf("---------------- Connexion ----------------\n\n");
+        saisieLogin[LONGUEUR_MAX_LOGIN] = '\0';
+        printf("----- login : ");
+        fgets(saisieLogin, LONGUEUR_MAX_LOGIN, stdin);
+        saisieLogin[strcspn(saisieLogin, "\n")] = 0; // Supprime le caractère de nouvelle ligne
+        if (strlen(saisieLogin) == 0)
         {
-            printf("Entrer votre username : ");
-            fgets(saisieLogin, MAX_USERNAME_LENGTH, stdin);
-            saisieLogin[strcspn(saisieLogin, "\n")] = 0; // Supprimer le retour à la ligne
-        } while (strcmp(saisieLogin, "") == 0);          // Demander à nouveau si le login est vide
+            printf("\nVous avez laissé le champ vide. Veuillez rentrer votre login.\n");
+            continue;
+        }
 
-        printf("Entrer votre mot de passe : ");
+        printf("----- Mot de passe : ");
 
-        i = 0;
-        while (i < MAX_PASSWORD_LENGTH - 1 && (c = getch()) != '\n')
+        int i = 0, c;
+        while (i < LONGUEUR_MAX_MDP - 1 && (c = getch()) != '\n')
         {
             if (c == 127)
             { // ASCII value for backspace
@@ -129,137 +342,163 @@ int main()
                 printf("*");
             }
         }
-
         saisieMotDePasse[i] = '\0';
 
-        // Vérification des identifiants
-        if (verifierIdentifiants(&identifiantsAdmin, 1, saisieLogin, saisieMotDePasse))
+        if (strlen(saisieMotDePasse) == 0)
         {
-            printf("\nAuthentification réussie en tant qu'admin.\n");
-            // Menu pour l'admin
-            int choix;
+            printf("\nVous avez laissé le champ vide. Veuillez entrer votre mot de passe.\n");
+            continue;
+        }
+
+        if (!(verifierIdentifiants(identifiantsAdmin, nombreIdentifiantsAdmin, saisieLogin, saisieMotDePasse)) && !(verifierIdentifiants(identifiantsEtudiant, nombreIdentifiantsEtudiant, saisieLogin, saisieMotDePasse)))
+        {
+            printf("\nLogin ou mot de passe invalides.\n");
+        }
+        if ((verifierIdentifiants(identifiantsAdmin, nombreIdentifiantsAdmin, saisieLogin, saisieMotDePasse)))
+        {
             do
             {
-                printf("\nMenu Admin :\n");
-                printf("1. Gestion des étudiants\n");
-                printf("2. Gestion de fichier\n");
-                printf("3. Marquer les présences\n");
-                printf("4. Envoyer un message\n");
-                printf("5. Paramètre\n");
-                printf("6. Quitter\n");
-                printf("Choix : ");
+                system("clear");
+                printf("\n--------------------------------------------------------------------------\n");
+                printf("\t\t\tBienvenue dans le menu de l'administrateur:\n");
+                printf("--------------------------------------------------------------------------\n");
+                printf("1 ---------- Gestion des étudiants\n");
+                printf("2 ---------- Génération de fichiers\n");
+                printf("3 ---------- Marquer les présences\n");
+                printf("4 ---------- Envoyer un message\n");
+                printf("5 ---------- Paramètres\n");
+                printf("6 ---------- Deconnexion\n");
+                printf("\n--- Entrez votre choix : ");
                 scanf("%d", &choix);
-                int sousChoix;
-                do
+                if (choix == 3)
                 {
-                    if (choix == 3)
+                    system("clear");
+                    marquerPresence();
+                    do
                     {
-                        // Afficher le menu principal
-                        printf("\t \t \t----------------------------------------------------------------------------\n");
-                        printf("\t \t \t1-------------------> Marquer présence <------------------------------------\n");
-                        printf("\t \t \t2. Liste présence\n");
-                        printf("\t \t \t0. Quitter\n");
-                        printf("\t \tChoix : ");
-                        scanf("%d", &sousChoix);
-                        if (sousChoix > 3 || sousChoix < 0)
+                        viderBuffer();
+                        printf("----- Mot de passe : ");
+                        int i = 0, c;
+                        while (i < LONGUEUR_MAX_MDP - 1 && (c = getch()) != '\n')
                         {
-                            printf("Choix invalide. Veuillez réessayer.\n");
-                        }
-
-                        // Marquer la présence d'un étudiant
-                        int matricule;
-                        printf("Matricule de l'etudiant : ");
-                        scanf("%d", &matricule);
-
-                                            // Ouvrir le fichier des étudiants
-                        FILE *fichierEtudiants = fopen("etudiants.txt", "a+");
-                        if (fichierEtudiants == NULL)
-                        {
-                            perror("Erreur lors de l'ouverture du fichier des étudiants");
-                            exit(EXIT_FAILURE);
-                        }
-
-                        // Ouvrir le fichier des présences
-                        FILE *fichierPresence = fopen("presence.txt", "a+");
-                        if (fichierPresence == NULL)
-                        {
-                            perror("Erreur lors de l'ouverture du fichier des présences");
-                            exit(EXIT_FAILURE);
-                        }
-
-                        // Rechercher l'étudiant dans le fichier
-                        rewind(fichierEtudiants);
-                        struct Etudiant etudiant;
-                        int etudiantTrouve = 0;
-
-                        while (fscanf(fichierEtudiants, "%d %s %s %s", &etudiant.id, etudiant.nom, etudiant.prenom, etudiant.matricule) == 4)
-                        {
-                            if (etudiant.id == matricule)
+                            if (c == 127)
                             {
-                                etudiantTrouve = 1;
-                                printf("%s %s (Matricule : %s) est present.\n", etudiant.prenom, etudiant.nom, etudiant.matricule);
+                                if (i > 0)
+                                {
+                                    printf("\b \b"); // Effacer le caractère précédent
+                                    i--;
+                                }
+                            }
+                            else
+                            {
+                                saisieMotDePasse[i++] = c;
+                                printf("*");
+                            }
+                        }
+                        saisieMotDePasse[i] = '\0';
 
-                                // Marquer la présence dans le fichier
-                                marquerPresence(fichierPresence, etudiant.id, etudiant.nom, etudiant.prenom);
+                        if (!(verifierIdentifiants(identifiantsAdmin, nombreIdentifiantsAdmin, saisieLogin, saisieMotDePasse)))
+                        {
+                            printf("\n--- ⛔ Vous n'êtes pas l'admin !!!\n");
+                            getchar();
+                            system("clear");
+                            marquerPresence();
+                        }
+                        else
+                        { // Appel de la fonction après la saisie du mot de passe correct
+                        }
+                    } while (!(verifierIdentifiants(identifiantsAdmin, nombreIdentifiantsAdmin, saisieLogin, saisieMotDePasse)));
+                }
+
+                if (choix == 6)
+                {
+                    printf("Vous êtes déconnecté !\n");
+                }
+                if (choix < 1 || choix > 6)
+                {
+                    printf("Choix invalide. Veuillez entrer un choix entre 1 et 2.\n");
+                }
+            } while (choix != 6);
+        }
+        if ((verifierIdentifiants(identifiantsEtudiant, nombreIdentifiantsEtudiant, saisieLogin, saisieMotDePasse)))
+        {
+            int choix = 0;
+            do
+            {
+                printf("\n--------------------------------------------------------------------------\n");
+                printf("\t\t\tBienvenue dans le menu de l'apprenant :\n");
+                printf("--------------------------------------------------------------------------\n");
+                printf("1 ---------- GESTION DES ÉTUDIANTS\n");
+                printf("2 ---------- GÉNÉRATION DE FICHIERS\n");
+                printf("3 ---------- MARQUER SA PRÉSENCE\n");
+                printf("4 ---------- Message (0)\n");
+                printf("5 ---------- Déconnexion\n");
+                printf("\n---------- Entrez votre choix : ");
+                scanf("%d", &choix);
+                if (choix < 1 || choix > 5)
+                {
+                    printf("Choix invalide. Veuillez entrer un choix entre  1 et 5.\n");
+                    system("clear");
+                }
+                if (choix == 3)
+                {
+
+                    //----------------------- Doublons & Présence ---------------------------------------------------------
+                    FILE *fichierPresence = fopen("file-presence.txt", "r");
+                    if (fichierPresence == NULL)
+                    {
+                        printf("Erreur lors de l'ouverture du fichier de présence.\n");
+                        return 1;
+                    }
+
+                    int present = 0;
+                    char matricule[10];
+                    while (fscanf(fichierPresence, "%s", matricule) != EOF)
+                    {
+                        if (strcmp(matricule, matricule) == 0)
+                        {
+                            printf("\n--- ❌ L'étudiant de matricule %s est déjà marqué présent.\n", matricule);
+                            present = 1;
+                            break;
+                        }
+                    }
+
+                    fclose(fichierPresence);
+
+                    if (!present)
+                    {
+                        FILE *fichier = fopen("file-etudiant.txt", "r+");
+                        if (fichier == NULL)
+                        {
+                            printf("Erreur lors de l'ouverture du fichier d'etudiants.\n");
+                            return 1;
+                        }
+
+                        while (fscanf(fichier, "%s", matricule) != EOF)
+                        {
+                            if (strcmp(matricule, matricule) == 0)
+                            {
+                                // Enregistrer la présence dans le fichier
+                                enregistrerPresence(matricule);
+                                printf("\n--- ✅ Presence marquee pour l'etudiant de matricule %s\n", matricule);
+                                present = 1;
                                 break;
                             }
                         }
 
-                        if (!etudiantTrouve)
-                        {
-                            printf("Le matricule %d n'existe pas.\n", matricule);
-                        }
-
-                        // Demander à l'admin de taper Q pour revenir au menu principal
-                        char reponse;
-                        printf("Taper Q pour revenir au menu principal : ");
-                        scanf(" %c", &reponse);
-
-                        if (reponse == 'Q' || reponse == 'q')
-                        {
-                            // Demander le mot de passe pour revenir au menu principal
-                            char mdp[50];
-                            printf("Saisir le mot de passe : ");
-                            scanf("%s", mdp);
-                            // Vérifier le mot de passe pour revenir au menu principal
-
-                            // if (strcmp(mdp, adminPassword) != 0)
-                            // {
-                            //     printf("Mot de passe incorrect. Fin du programme.\n");
-                            //     exit(EXIT_SUCCESS);
-                            // }
-                            
-                        }
+                        fclose(fichier);
                     }
-
-                } while (sousChoix > 3 || sousChoix < 0);
-
-            } while (choix != 6);
+                    //----------------------------------------  Fin -----------------------------------------------------
+                }
+                if (choix == 5)
+                {
+                    system("clear");
+                    printf("Vous êtes déconnecté !\n");
+                    saisieLogin[LONGUEUR_MAX_LOGIN] = 'a';
+                }
+            } while (choix != 5);
         }
-        else if (verifierIdentifiants(&identifiantsEtudiant, 1, saisieLogin, saisieMotDePasse))
-        {
-            printf("\nAuthentification réussie en tant qu'étudiant.\n");
-            // Menu pour l'étudiant
-            int choix;
-            do
-            {
-                printf("\nMenu Étudiant :\n");
-                printf("1. Marquer ma présence\n");
-                printf("2. Nombre de minutes d'absences\n");
-                printf("3. Mes messages\n");
-                printf("4. Quitter\n");
-                printf("Choix : ");
-                scanf("%d", &choix);
-
-                // Ajoutez ici les fonctionnalités correspondantes aux choix du menu étudiant
-
-            } while (choix != 4);
-        }
-        else
-        {
-            printf("\nIdentifiants invalides. Veuillez réessayer.\n");
-        }
-    } while (1);
+    } while (!(verifierIdentifiants(identifiantsAdmin, nombreIdentifiantsAdmin, saisieLogin, saisieMotDePasse)) || !(verifierIdentifiants(identifiantsEtudiant, nombreIdentifiantsEtudiant, saisieLogin, saisieMotDePasse)));
 
     return 0;
 }
