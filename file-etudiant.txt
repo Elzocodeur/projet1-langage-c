@@ -1,4 +1,7 @@
-1 Elimane  Gning 1eg
-2 Fallou Seck    2fs
-3 Omar   Diouf   3OD
-4 Assance   Dieng 4AD
+ Elimane  Gning 1eg
+Fallou Seck    2fs
+Omar   Diouf   3OD
+Assance   Dieng 4AD
+Awa  Fall      5af
+Modou  gning    6mg
+

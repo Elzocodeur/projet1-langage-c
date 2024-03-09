@@ -31,6 +31,21 @@ char getch()
 #define LONGUEUR_MAX_MDP 10
 #define MAX_STUDENTS_PER_CLASS 50
 
+
+// Codes d'échappement ANSI pour les couleurs du texte
+#define RESET   "\x1B[0m"
+#define RED     "\x1B[31m"
+#define GREEN   "\x1B[32m"
+#define YELLOW  "\x1B[33m"
+#define BLUE    "\x1B[34m"
+#define MAGENTA "\x1B[35m"
+#define CYAN    "\x1B[36m"
+#define WHITE   "\x1B[37m"
+
+
+
+// Fonction pour imprimer le tableau clignotant
+
 typedef struct
 {
     int jour;
@@ -58,7 +73,52 @@ typedef struct
 Identifiants identifiantsAdmin;
 int nombreIdentifiantsAdmin = 1;
 
-void enregistrerPresence(char *matricule)
+int obtenirInfosEtudiantParMatricule(char *prenom, char *nom, char *matricule)
+{
+    FILE *fichier = fopen("file-etudiant.txt", "r");
+
+    if (fichier == NULL)
+    {
+        printf("Erreur lors de l'ouverture du fichier d'etudiants.\n");
+        return 0; // Retourner 0 pour indiquer une erreur
+    }
+
+    int trouve = 0;
+    Apprenant etudiant;
+
+    while (fscanf(fichier, " %s %s %s", etudiant.prenom, etudiant.nom, etudiant.matricule) != EOF)
+    {
+
+    
+
+        if (strcmp(etudiant.matricule, matricule) == 0)
+        {
+            
+            // Étudiant trouvé, copier le prénom et le nom
+            strcpy(prenom, etudiant.prenom);
+            strcpy(nom, etudiant.nom);
+            trouve = 1;
+            break;
+        }
+    }
+
+    fclose(fichier);
+
+    if (trouve == 0)
+    {
+        printf("Étudiant de matricule %s non trouvé.\n", matricule);
+    
+        return 0; // Retourner 0 pour indiquer que l'étudiant n'a pas été trouvé
+    }
+
+    return 1; // Retourner 1 pour indiquer le succès
+}
+
+
+
+
+
+void enregistrerPresence(char *prenom, char *nom, char *matricule)
 {
     FILE *fichier = fopen("file-presence.txt", "a");
     if (fichier == NULL)
@@ -71,7 +131,7 @@ void enregistrerPresence(char *matricule)
     time_t now = time(NULL);
     struct tm *timeinfo = localtime(&now);
     // Écrire dans le fichier la date et l'heure
-    fprintf(fichier, "%s %d/%d/%d %dh%dmn%ds\n", matricule, timeinfo->tm_mday, timeinfo->tm_mon + 1,
+    fprintf(fichier, "%s %s %s %d/%d/%d %dh%dmn%ds\n",prenom, nom, matricule, timeinfo->tm_mday, timeinfo->tm_mon + 1,
             timeinfo->tm_year + 1900, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
 
     fclose(fichier);
@@ -90,21 +150,55 @@ void marquerPresence()
             printf("Erreur lors de l'ouverture du fichier de présence.\n");
             return;
         }
+
         int present = 0;
         char matricule[10];
-        while (fscanf(fichierPresence, "%s", matricule) != EOF)
+        char date[20];
+        char prenom[20];
+        char nom[20];
+        while (fscanf(fichierPresence, "%s %s", matricule, date) != EOF)
         {
             if (strcmp(matricule, choix) == 0)
             {
-                printf("\n--- ❌ L'étudiant de matricule %s est déjà marqué présent.\n", choix);
+                printf(RED "\n--- L'étudiant de matricule %s est déjà marqué présent aujourd'hui.\n" RESET, choix);
                 present = 1;
-                break;
             }
         }
         fclose(fichierPresence);
 
         if (!present)
         {
+            // Vérifier la date du dernier marquage
+            FILE *fichierDernierMarquage = fopen("dernier-marquage.txt", "r");
+            if (fichierDernierMarquage == NULL)
+            {
+                printf("Erreur lors de l'ouverture du fichier du dernier marquage.\n");
+                return;
+            }
+
+            char dernierMatricule[10];
+            char dernierDate[20];
+            while (fscanf(fichierDernierMarquage, "%s %s", dernierMatricule, dernierDate) != EOF)
+            {
+                if (strcmp(dernierMatricule, choix) == 0)
+                {
+                    // Vérifier si la date est la même que la date actuelle
+                    time_t now = time(NULL);
+                    struct tm *timeinfo = localtime(&now);
+                    char dateActuelle[20];
+                    sprintf(dateActuelle, "%01d/%01d/%04d", timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900);
+
+                    if (strcmp(dernierDate, dateActuelle) == 0)
+                    {
+                        printf(RED "\n--- Vous avez déjà marqué votre présence aujourd'hui.\n" RESET);
+                        fclose(fichierDernierMarquage);
+                        break;
+                    }
+                }
+            }
+
+            fclose(fichierDernierMarquage);
+
             FILE *fichier = fopen("file-etudiant.txt", "r+");
             if (fichier == NULL)
             {
@@ -116,9 +210,27 @@ void marquerPresence()
             {
                 if (strcmp(matricule, choix) == 0)
                 {
+                    obtenirInfosEtudiantParMatricule(prenom, nom, matricule);
                     // Enregistrer la présence dans le fichier
-                    enregistrerPresence(choix);
-                    printf("\n--- ✅ Presence marquee pour l'etudiant de matricule %s\n", choix);
+                    // Etudiant e = rechercheEtudiant(matr)
+                    enregistrerPresence(prenom, nom, matricule);
+
+                    // Mettre à jour la date du dernier marquage
+                    FILE *fichierDernierMarquage = fopen("dernier-marquage.txt", "a");
+                    if (fichierDernierMarquage == NULL)
+                    {
+                        printf("Erreur lors de l'ouverture du fichier du dernier marquage.\n");
+                        fclose(fichier);
+                        return;
+                    }
+
+                    time_t now = time(NULL);
+                    struct tm *timeinfo = localtime(&now);
+                    fprintf(fichierDernierMarquage, "%s %02d/%02d/%04d\n", choix, timeinfo->tm_mday, timeinfo->tm_mon + 1, timeinfo->tm_year + 1900);
+
+                    fclose(fichierDernierMarquage);
+
+                    printf(GREEN "\n ✅ Presence marquee pour l'etudiant de matricule %s\n" RESET, choix);
                     present = 1;
                     break;
                 }
@@ -128,7 +240,7 @@ void marquerPresence()
 
         if (!present)
         {
-            printf("--- ❌ Matricule invalide. Veuillez reessayer ('Q' pour quitter) : ");
+            printf(RED "---  Matricule invalide. Veuillez reessayer ('Q' pour quitter) : " RESET);
         }
         else
         {
@@ -139,19 +251,10 @@ void marquerPresence()
     }
 }
 
-//---------------------------------------- Générer Fichier -------------------------------------------
-/*void genrerFchierPresenceGlobal () {
-    FILE *fichier = fopen ("presenceGlobal.txt","w");
-    if (fichier == NULL) {
-        printf("Erreur lors de l'ouverture du fichier d'etudiants.\n");
-        return;
-    }
-    while (fscanf(fichier,"%s", ) != EOF) {
 
-    }
-    fclose(fichier);
-}
-*/
+
+
+
 
 int menuAdmin()
 {
@@ -171,7 +274,7 @@ int menuAdmin()
         scanf("%d", &choix);
         if (choix < 1 || choix > 6)
         {
-            printf("Choix invalide. Veuillez entrer un choix entre 1 et 2.\n");
+            printf( RED"Choix invalide. Veuillez entrer un choix entre 1 et 2.\n" RESET);
         }
     } while (choix != 6);
     return choix;
@@ -195,7 +298,7 @@ int menuEtudiant()
         scanf("%d", &choix);
         if (choix < 1 || choix > 5)
         {
-            printf("Choix invalide. Veuillez entrer un choix entre  1 et 5.\n");
+            printf( RED"Choix invalide. Veuillez entrer un choix entre  1 et 5.\n" RESET);
         }
     } while (choix < 1 || choix > 5);
     return choix;
@@ -221,57 +324,116 @@ void viderBuffer()
         ; // Lire et ignorer les caractères jusqu'à la fin de la ligne ou la fin du fichier
 }
 
-/* //---------------------------------- Validation date
-int saisirjour (void) {
-    int jour;
-    printf("Saisir un jour : ");
-    scanf("%d", &jour);
-    return  jour;
+//------------------------------------2 GENERATION DE FICHIERS--------------------------------------------------------
+
+        void genererFichierToutesPresences()
+{
+    FILE *fichierPresence = fopen("file-presence.txt", "r");
+    if (fichierPresence == NULL)
+    {
+        printf("Erreur lors de l'ouverture du fichier de présence.\n");
+        return;
+    }
+
+    FILE *fichierSortie = fopen("fichier-toutes-presences.txt", "w");
+    if (fichierSortie == NULL)
+    {
+        printf("Erreur lors de la création du fichier de sortie.\n");
+        fclose(fichierPresence);
+        return;
+    }
+
+    fprintf(fichierSortie, "FICHIER DE TOUTES LES PRÉSENCES\n\n");
+
+    char date[20];
+    char matricule[10];
+    char nom[20];
+    char prenom[20];
+
+    while (fscanf(fichierPresence, "%s %s %s %s",  date, prenom,nom,matricule) != EOF)
+    {
+        fprintf(fichierSortie, "Date : %s\n", date);
+        fprintf(fichierSortie, "+-------------------+------------------+------------+\n");
+        fprintf(fichierSortie, "| Nom               | Prénom           | Matricule  |\n");
+        fprintf(fichierSortie, "+-------------------+------------------+------------+\n");
+        fprintf(fichierSortie, "| %-17s | %-16s | %-10s |\n", prenom, nom, matricule);
+        fprintf(fichierSortie, "+-------------------+------------------+------------+\n\n");
+    }
+
+    fclose(fichierPresence);
+    fclose(fichierSortie);
+
+    printf("Fichier généré avec succès : fichier-toutes-presences.txt\n");
 }
 
-int saisirmois (void) {
-    int mois;
-    printf("Saisir un mois : ");
-    scanf("%d", &mois);
-    return  mois;
-}
 
-int saisiran (void) {
-    int an;
-    printf("Saisir une année : ");
-    scanf("%d", &an);
-    return  an;
-}
+void genererFichierParDate()
+{
+    char dateRecherche[20];
+    int jour, mois, annee;
+    char garbage; // Pour stocker les caractères indésirables
 
-int isbissextile (int an) {
-    if ((an % 4 == 0 && an % 100 != 0) || an % 400 ==  0) return 1;
-    else return 0;
-}
+    printf("Veuillez entrer la date au format JJ/MM/AAAA : ");
 
-int nbr_jour (int mois, int an) {
-    if (mois == 4 || mois == 6 || mois == 9 || mois == 11) {
-        return 30;
-    } else if (mois ==  2) {
-        if (isbissextile(an)){
-            return 29;
-         }else{
-             return 28;
+    // Vérification de la saisie de la date
+    if (scanf("%d/%d/%d%c", &jour, &mois, &annee, &garbage) != 4 || garbage != '\n')
+    {
+        printf(RED "Saisie invalide. Veuillez entrer une date au format JJ/MM/AAAA.\n" RESET);
+        // Nettoyer le buffer d'entrée
+        while (getchar() != '\n');
+        return;
+    }
+
+    // Validation de la date
+    if (jour < 1 || jour > 31 || mois < 1 || mois > 12 || annee < 1)
+    {
+        printf(RED "Date invalide. Veuillez entrer une date au format valide.\n" RESET);
+        return;
+    }
+
+    sprintf(dateRecherche, "%01d/%01d/%04d", jour, mois, annee);
+
+    FILE *fichierPresence = fopen("file-presence.txt", "r");
+    if (fichierPresence == NULL)
+    {
+        printf("Erreur lors de l'ouverture du fichier de présence.\n");
+        return;
+    }
+
+    int presenceTrouvee = 0;
+    char date[20];
+    char matricule[10];
+    char nom[20];
+    char prenom[20];
+
+    while (fscanf(fichierPresence, "%s %s %s %s", date, prenom, nom, matricule) != EOF)
+    {
+        if (strcmp(date, dateRecherche) == 0)
+        {
+            presenceTrouvee = 1;
+            printf(MAGENTA "Date de présence : %s\n" RESET, date);
+            printf("+-------------------+------------------+------------+\n");
+            printf("| " CYAN "Nom" RESET "               | " YELLOW "Prénom" RESET "           | " RED "Matricule" RESET "  |\n");
+            printf("+-------------------+------------------+------------+\n");
+            printf("| %-17s | %-16s | %-10s |\n", prenom, nom, matricule);
+            printf("+-------------------+------------------+------------+\n\n");
         }
-    } else {
-         return 31;
+    }
+
+    fclose(fichierPresence);
+
+    if (!presenceTrouvee)
+    {
+        printf("Pas de liste de présence à cette date.\n");
+        printf("Tapez 0 pour revenir au menu précédent.\n");
     }
 }
 
-void isdatevalide1 (int j, int mois, int an){
-    if (an > 0 && mois > 0 && mois <= 12 && j > 0 && j <= nbr_jour(mois, an))
-        printf("La date %d/%d/%d est valide\n", j, mois, an);
-    else  printf("Erreur: La date %d/%d/%d est invalide\n", j, mois, an);
-}
- */
-
+//------------------------------FIN GENERATION DE FICHIERS------------------------------------------------------------
 //-------------------------------------------------------- Main -------------------------------------------------------
 int main()
 {
+
     // Création des fichiers pour stocker les identifiants
     FILE *fichierAdmin = fopen("admins.txt", "r");
     FILE *fichierEtudiant = fopen("etudiants.txt", "r");
@@ -311,7 +473,7 @@ int main()
     // Authentification
     do
     {
-        system("clear");
+        // system("clear");
         printf("---------------- Connexion ----------------\n\n");
         saisieLogin[LONGUEUR_MAX_LOGIN] = '\0';
         printf("----- login : ");
@@ -358,6 +520,7 @@ int main()
         {
             do
             {
+
                 system("clear");
                 printf("\n--------------------------------------------------------------------------\n");
                 printf("\t\t\tBienvenue dans le menu de l'administrateur:\n");
@@ -370,6 +533,38 @@ int main()
                 printf("6 ---------- Deconnexion\n");
                 printf("\n--- Entrez votre choix : ");
                 scanf("%d", &choix);
+
+                if (choix == 2)
+                {
+                    int sousChoixFichiers = 0;
+                    do
+                    {
+                        printf("\n--- Génération de fichiers ---\n");
+                        printf("1 ---------- Toutes les présences\n");
+                        printf("2 ---------- Par date\n");
+                        printf("0 ---------- Retour au menu principal\n");
+                        printf("\n--- Entrez votre choix : ");
+                        scanf("%d", &sousChoixFichiers);
+
+                        if (sousChoixFichiers == 1)
+                        {
+                            // Génération du fichier de toutes les présences
+                            genererFichierToutesPresences();
+                        }
+                        else if (sousChoixFichiers == 2)
+                        {
+                            // Génération du fichier par date
+                            genererFichierParDate();
+                            
+                        }
+                        else if (sousChoixFichiers != 0)
+                        {
+                            printf("Choix invalide. Veuillez entrer 0, 1 ou 2.\n");
+                        }
+
+                    } while (sousChoixFichiers != 0);
+                }
+
                 if (choix == 3)
                 {
                     system("clear");
@@ -453,11 +648,13 @@ int main()
 
                     int present = 0;
                     char matricule[10];
+                    char prenom[20];
+                    char nom[20];
                     while (fscanf(fichierPresence, "%s", matricule) != EOF)
                     {
                         if (strcmp(matricule, matricule) == 0)
                         {
-                            printf("\n--- ❌ L'étudiant de matricule %s est déjà marqué présent.\n", matricule);
+                            printf( RED"\n---  L'étudiant de matricule %s est déjà marqué présent.\n" RESET, matricule);
                             present = 1;
                             break;
                         }
@@ -479,8 +676,8 @@ int main()
                             if (strcmp(matricule, matricule) == 0)
                             {
                                 // Enregistrer la présence dans le fichier
-                                enregistrerPresence(matricule);
-                                printf("\n--- ✅ Presence marquee pour l'etudiant de matricule %s\n", matricule);
+                                enregistrerPresence(prenom, nom, matricule);
+                                printf( GREEN"\n--- ✅ Presence marquee pour l'etudiant de matricule %s\n" RESET, matricule);
                                 present = 1;
                                 break;
                             }
